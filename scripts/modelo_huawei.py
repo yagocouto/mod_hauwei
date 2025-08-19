@@ -31,7 +31,7 @@ def extrair_interface_brief(linhas):
             continue
         if capturar:
             if not linha.strip() or linha.startswith("<") or linha.startswith("==="):
-                continue
+                break
             partes = linha.split()
             if len(partes) < 7:
                 continue
@@ -63,14 +63,13 @@ def extrair_detalhes_interfaces(linhas, interfaces):
             nome = linha.split()[1]
             if nome in interfaces:
                 iface_atual = nome
-        elif iface_atual:
-            if "description:" in linha.lower():
-                partes_desc = linha.lower().split("description", 1)
-                if len(partes_desc) > 1:
-                    interfaces[iface_atual]["Description"] = partes_desc[1].strip()
-                else:
-                    interfaces[iface_atual]["Description"] = ""
+        
+        if iface_atual:
 
+            if linha.lower().startswith("description: "):
+                descricao = linha.split(":", 1)
+                interfaces[iface_atual]["Description"] = descricao
+            
             if "port link-type" in linha:
                 interfaces[iface_atual]["Link-type"] = linha.split()[-1]
             if "port hybrid pvid vlan" in linha:
@@ -85,6 +84,8 @@ def extrair_detalhes_interfaces(linhas, interfaces):
                 ].strip()
             if "voice-vlan" in linha and "enable" in linha:
                 interfaces[iface_atual]["Voice-vlan"] = linha.split()[1]
+
+    print(interfaces)
     return interfaces
 
 
@@ -167,17 +168,17 @@ def processar_mod_huawei():
             "Device Name",
             "Current Port",
             "Description",
-            "PVID",
-            "Duplex",
-            "Speed",
-            "Link-type",
-            "Tagged",
-            "Untagged",
-            "Voice-vlan",
             "LLDP Device ID",
             "Neighbor Dest. Port",
             "Neighbor IP Address",
             "Status",
+            "Link-type",
+            "PVID",
+            "Tagged",
+            "Untagged",
+            "Voice-vlan",
+            "Duplex",
+            "Speed",
             "Observação",
         ]
         df = pd.DataFrame(dados, columns=colunas)
