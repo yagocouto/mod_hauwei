@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 import pandas as pd
 
 
@@ -36,9 +35,7 @@ def extrair_interface_brief(linhas):
             if len(partes) < 7:
                 continue
 
-            # Verifica se as duas últimas colunas são números
             if not (partes[-2].isdigit() and partes[-1].isdigit()):
-                # Linha fora do padrão, pula
                 continue
 
             iface = partes[0]
@@ -59,33 +56,35 @@ def extrair_interface_brief(linhas):
 def extrair_detalhes_interfaces(linhas, interfaces):
     iface_atual = None
     for linha in linhas:
-        if linha.startswith("interface "):
-            nome = linha.split()[1]
-            if nome in interfaces:
-                iface_atual = nome
-        
-        if iface_atual:
+        if linha.strip().lower().startswith("interface "):
+            nome = linha.split()[1].strip()
+            # normaliza para minúsculas ao comparar
+            for iface_nome in interfaces:
+                if iface_nome.lower() == nome.lower():
+                    iface_atual = iface_nome
+                    break
+            else:
+                iface_atual = None
 
-            if linha.lower().startswith("description: "):
-                descricao = linha.split(":", 1)
-                interfaces[iface_atual]["Description"] = descricao
-            
+        if iface_atual:
+            # captura description ignorando espaços e maiúsculas
+            if "description" in linha.lower():
+                partes = linha.split(":", 1)
+                if len(partes) > 1:
+                    descricao = partes[1].strip()
+                    interfaces[iface_atual]["Description"] = descricao
+
             if "port link-type" in linha:
                 interfaces[iface_atual]["Link-type"] = linha.split()[-1]
             if "port hybrid pvid vlan" in linha:
                 interfaces[iface_atual]["PVID"] = linha.split()[-1]
             if "port hybrid tagged vlan" in linha:
-                interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[
-                    1
-                ].strip()
+                interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[1].strip()
             if "port hybrid untagged vlan" in linha:
-                interfaces[iface_atual]["Untagged"] = linha.split("untagged vlan")[
-                    1
-                ].strip()
+                interfaces[iface_atual]["Untagged"] = linha.split("untagged vlan")[1].strip()
             if "voice-vlan" in linha and "enable" in linha:
                 interfaces[iface_atual]["Voice-vlan"] = linha.split()[1]
 
-    print(interfaces)
     return interfaces
 
 
@@ -98,13 +97,9 @@ def extrair_detalhes_display_interface(linhas, interfaces):
                 iface_atual = nome
         elif iface_atual:
             if "Speed :" in linha:
-                interfaces[iface_atual]["Speed"] = (
-                    linha.split(":")[1].split(",")[0].strip()
-                )
+                interfaces[iface_atual]["Speed"] = linha.split(":")[1].split(",")[0].strip()
             if "Duplex:" in linha:
-                interfaces[iface_atual]["Duplex"] = (
-                    linha.split(":")[1].split(",")[0].strip()
-                )
+                interfaces[iface_atual]["Duplex"] = linha.split(":")[1].split(",")[0].strip()
     return interfaces
 
 
@@ -119,42 +114,30 @@ def extrair_lldp(linhas, interfaces):
             if "System name" in linha:
                 interfaces[iface_atual]["LLDP Device ID"] = linha.split(":")[1].strip()
             if "Port ID" in linha and "Port ID type" not in linha:
-                interfaces[iface_atual]["Neighbor Dest. Port"] = linha.split(":")[
-                    1
-                ].strip()
+                interfaces[iface_atual]["Neighbor Dest. Port"] = linha.split(":")[1].strip()
             if "Management address value" in linha:
-                interfaces[iface_atual]["Neighbor IP Address"] = linha.split(":")[
-                    1
-                ].strip()
+                interfaces[iface_atual]["Neighbor IP Address"] = linha.split(":")[1].strip()
     return interfaces
 
 
 def processar_mod_huawei():
     pasta = Path("entrada")
     arquivos_txt = list(pasta.glob("*.txt"))
-    caminho_excel = "saida/interfaces_huawei.xlsx"
+    caminho_excel = Path("saida/interfaces_huawei.xlsx")
 
     for arquivo in arquivos_txt:
         linhas = ler_arquivo(arquivo)
         device_name = extrair_device_name(linhas)
         interfaces = extrair_interface_brief(linhas)
-        # Inicializa todos campos vazios
+
+        # Inicializa campos apenas se não existirem (não sobrescreve Description)
         for v in interfaces.values():
-            v.update(
-                {
-                    "Description": "",
-                    "PVID": "",
-                    "Duplex": "",
-                    "Speed": "",
-                    "Link-type": "",
-                    "Tagged": "",
-                    "Untagged": "",
-                    "Voice-vlan": "",
-                    "LLDP Device ID": "",
-                    "Neighbor Dest. Port": "",
-                    "Neighbor IP Address": "",
-                }
-            )
+            campos = ["Description","PVID","Duplex","Speed","Link-type",
+                      "Tagged","Untagged","Voice-vlan","LLDP Device ID",
+                      "Neighbor Dest. Port","Neighbor IP Address"]
+            for c in campos:
+                v.setdefault(c, "")
+
         interfaces = extrair_detalhes_interfaces(linhas, interfaces)
         interfaces = extrair_detalhes_display_interface(linhas, interfaces)
         interfaces = extrair_lldp(linhas, interfaces)
@@ -183,11 +166,8 @@ def processar_mod_huawei():
         ]
         df = pd.DataFrame(dados, columns=colunas)
 
-        caminho_excel = Path(caminho_excel)
         if caminho_excel.exists():
-            with pd.ExcelWriter(
-                caminho_excel, engine="openpyxl", mode="a", if_sheet_exists="replace"
-            ) as writer:
+            with pd.ExcelWriter(caminho_excel, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
                 df.to_excel(writer, sheet_name=device_name, index=False)
         else:
             with pd.ExcelWriter(caminho_excel, engine="openpyxl") as writer:
