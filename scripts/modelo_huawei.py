@@ -66,6 +66,15 @@ def extrair_detalhes_interfaces(linhas, interfaces):
             else:
                 iface_atual = None
 
+        if iface_atual:
+            # captura description ignorando espaços e maiúsculas
+            if "description" in linha.lower():
+                partes = linha.split("description", 1)
+                if len(partes) > 1:
+                    descricao = partes[1]
+                    print(descricao)
+                    interfaces[iface_atual]["Description"] = descricao
+                    
 
             if "port link-type" in linha:
                 interfaces[iface_atual]["Link-type"] = linha.split()[-1]
@@ -77,30 +86,6 @@ def extrair_detalhes_interfaces(linhas, interfaces):
                 interfaces[iface_atual]["Untagged"] = linha.split("untagged vlan")[1].strip()
             if "voice-vlan" in linha and "enable" in linha:
                 interfaces[iface_atual]["Voice-vlan"] = linha.split()[1]
-
-    return interfaces
-
-def extrair_description(linhas, interfaces):
-    iface_atual = None
-    for linha in linhas:
-        linha = linha.strip()
-
-        # Detecta a interface atual
-        if linha.startswith("=== display interface ==="):
-            nome = linha.split()[1].strip()
-            # Verifica se a interface existe no dicionário
-            if nome in interfaces:
-                iface_atual = nome
-            else:
-                iface_atual = None  # não existe no dicionário, ignora
-
-        # Processa a descrição
-        elif linha.startswith("Description: ") and iface_atual is not None:
-            print(linha)
-            
-            descricao = linha.split(":", 1)[1].strip()
-            interfaces[iface_atual]["Description"] = descricao
-            print(interfaces[iface_atual]["Description"])
 
     return interfaces
 
@@ -158,7 +143,6 @@ def processar_mod_huawei():
         interfaces = extrair_detalhes_interfaces(linhas, interfaces)
         interfaces = extrair_detalhes_display_interface(linhas, interfaces)
         interfaces = extrair_lldp(linhas, interfaces)
-        interfaces = extrair_description(linhas, interfaces)
 
         dados = []
         for iface in interfaces.values():
