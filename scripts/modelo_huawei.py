@@ -72,18 +72,20 @@ def extrair_detalhes_interfaces(linhas, interfaces):
                 partes = linha.split("description", 1)
                 if len(partes) > 1:
                     descricao = partes[1]
-                    print(descricao)
                     interfaces[iface_atual]["Description"] = descricao
-                    
 
             if "port link-type" in linha:
                 interfaces[iface_atual]["Link-type"] = linha.split()[-1]
             if "port hybrid pvid vlan" in linha:
                 interfaces[iface_atual]["PVID"] = linha.split()[-1]
             if "port hybrid tagged vlan" in linha:
-                interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[1].strip()
+                interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[
+                    1
+                ].strip()
             if "port hybrid untagged vlan" in linha:
-                interfaces[iface_atual]["Untagged"] = linha.split("untagged vlan")[1].strip()
+                interfaces[iface_atual]["Untagged"] = linha.split("untagged vlan")[
+                    1
+                ].strip()
             if "voice-vlan" in linha and "enable" in linha:
                 interfaces[iface_atual]["Voice-vlan"] = linha.split()[1]
 
@@ -99,26 +101,55 @@ def extrair_detalhes_display_interface(linhas, interfaces):
                 iface_atual = nome
         elif iface_atual:
             if "Speed :" in linha:
-                interfaces[iface_atual]["Speed"] = linha.split(":")[1].split(",")[0].strip()
+                interfaces[iface_atual]["Speed"] = (
+                    linha.split(":")[1].split(",")[0].strip()
+                )
             if "Duplex:" in linha:
-                interfaces[iface_atual]["Duplex"] = linha.split(":")[1].split(",")[0].strip()
+                interfaces[iface_atual]["Duplex"] = (
+                    linha.split(":")[1].split(",")[0].strip()
+                )
     return interfaces
 
 
+import re
+
+
 def extrair_lldp(linhas, interfaces):
+    """
+    Extrai informações de LLDP de um conjunto de linhas de saída
+    e organiza os dados por interface.
+    """
+
     iface_atual = None
     for linha in linhas:
+        linha = linha.strip()
+
+        # Identifica início de interface
         if linha.startswith("GigabitEthernet"):
             nome = linha.split()[0]
             if nome in interfaces:
                 iface_atual = nome
-        elif iface_atual:
-            if "System name" in linha:
-                interfaces[iface_atual]["LLDP Device ID"] = linha.split(":")[1].strip()
-            if "Port ID" in linha and "Port ID type" not in linha:
-                interfaces[iface_atual]["Neighbor Dest. Port"] = linha.split(":")[1].strip()
-            if "Management address value" in linha:
-                interfaces[iface_atual]["Neighbor IP Address"] = linha.split(":")[1].strip()
+            continue
+
+        if iface_atual:
+            # Captura Port ID (ignora 'Port ID type')
+            if re.search(r"^Port ID\s*:", linha) and "Port ID type" not in linha:
+                interfaces[iface_atual]["Neighbor Dest. Port"] = linha.split(":", 1)[
+                    1
+                ].strip()
+
+            # Captura LLDP Device ID
+            elif re.search(r"^Chassis ID\s*:", linha):
+                interfaces[iface_atual]["LLDP Device ID"] = linha.split(":", 1)[
+                    1
+                ].strip()
+
+            # Captura IP do vizinho
+            elif re.search(r"^Management address value\s*:", linha):
+                interfaces[iface_atual]["Neighbor IP Address"] = linha.split(":", 1)[
+                    1
+                ].strip()
+
     return interfaces
 
 
@@ -128,15 +159,26 @@ def processar_mod_huawei():
     caminho_excel = Path("saida/interfaces_huawei.xlsx")
 
     for arquivo in arquivos_txt:
+        print(f"Lendo arquivo: {arquivo.name}")
         linhas = ler_arquivo(arquivo)
         device_name = extrair_device_name(linhas)
         interfaces = extrair_interface_brief(linhas)
 
         # Inicializa campos apenas se não existirem (não sobrescreve Description)
         for v in interfaces.values():
-            campos = ["Description","PVID","Duplex","Speed","Link-type",
-                      "Tagged","Untagged","Voice-vlan","LLDP Device ID",
-                      "Neighbor Dest. Port","Neighbor IP Address"]
+            campos = [
+                "Description",
+                "PVID",
+                "Duplex",
+                "Speed",
+                "Link-type",
+                "Tagged",
+                "Untagged",
+                "Voice-vlan",
+                "LLDP Device ID",
+                "Neighbor Dest. Port",
+                "Neighbor IP Address",
+            ]
             for c in campos:
                 v.setdefault(c, "")
 
@@ -169,7 +211,9 @@ def processar_mod_huawei():
         df = pd.DataFrame(dados, columns=colunas)
 
         if caminho_excel.exists():
-            with pd.ExcelWriter(caminho_excel, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+            with pd.ExcelWriter(
+                caminho_excel, engine="openpyxl", mode="a", if_sheet_exists="replace"
+            ) as writer:
                 df.to_excel(writer, sheet_name=device_name, index=False)
         else:
             with pd.ExcelWriter(caminho_excel, engine="openpyxl") as writer:
