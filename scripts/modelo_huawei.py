@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import re
 
 
 def ler_arquivo(caminho):
@@ -111,41 +112,41 @@ def extrair_detalhes_display_interface(linhas, interfaces):
     return interfaces
 
 
-import re
-
-
 def extrair_lldp(linhas, interfaces):
-    """
-    Extrai informações de LLDP de um conjunto de linhas de saída
-    e organiza os dados por interface.
-    """
+    iface_local = None  # Interface local atual
+    iface_atual = None  # Interface que vamos gravar no dict
 
-    iface_atual = None
     for linha in linhas:
         linha = linha.strip()
 
-        # Identifica início de interface
-        if linha.startswith("GigabitEthernet"):
-            nome = linha.split()[0]
-            if nome in interfaces:
-                iface_atual = nome
+        # Captura a interface local antes de "has x neighbor(s):"
+        match_iface = re.match(r"^(\S+) has \d+ neighbor\(s\):", linha)
+        if match_iface:
+            iface_local = match_iface.group(1)
+            continue
+
+        # Captura o Port ID (interface remota)
+        match_port = re.match(r"^Port ID\s*:\s*(.+)", linha)
+        if match_port and iface_local:
+            remote_port = match_port.group(1).strip()
+
+            # Usa a interface local como chave no dicionário
+            if iface_local in interfaces:
+                iface_atual = iface_local
+                interfaces[iface_atual]["Neighbor Dest. Port"] = remote_port
             continue
 
         if iface_atual:
-            # Captura Port ID (ignora 'Port ID type')
-            if re.search(r"^Port ID\s*:", linha) and "Port ID type" not in linha:
-                interfaces[iface_atual]["Neighbor Dest. Port"] = linha.split(":", 1)[
+            # LLDP Device ID (vou usar como System Name para consistência)
+            match_sysname = re.match(r"^System name\s*:\s*(.+)", linha)
+            if match_sysname:
+                interfaces[iface_atual]["LLDP Device ID"] = match_sysname.group(
                     1
-                ].strip()
+                ).strip()
+                print(match_sysname.group(1).strip())
 
-            # Captura LLDP Device ID
-            elif re.search(r"^Chassis ID\s*:", linha):
-                interfaces[iface_atual]["LLDP Device ID"] = linha.split(":", 1)[
-                    1
-                ].strip()
-
-            # Captura IP do vizinho
-            elif re.search(r"^Management address value\s*:", linha):
+            # Neighbor IP
+            if linha.startswith("Management address value"):
                 interfaces[iface_atual]["Neighbor IP Address"] = linha.split(":", 1)[
                     1
                 ].strip()
