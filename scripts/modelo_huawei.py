@@ -96,21 +96,28 @@ def extrair_detalhes_interfaces(linhas, interfaces):
 def extrair_detalhes_display_interface(linhas, interfaces):
     iface_atual = None
     for linha in linhas:
-        if linha.startswith("GigabitEthernet"):
-            nome = linha.split()[0]
+        # Detecta interface antes de "current state"
+        match_iface = re.match(r"^(\S+)\s+current state", linha)
+        if match_iface:
+            nome = match_iface.group(1)
             if nome in interfaces:
                 iface_atual = nome
         elif iface_atual:
-            if "Speed :" in linha:
-                interfaces[iface_atual]["Speed"] = (
-                    linha.split(":")[1].split(",")[0].strip()
-                )
-            if "Duplex:" in linha:
-                interfaces[iface_atual]["Duplex"] = (
-                    linha.split(":")[1].split(",")[0].strip()
-                )
+            if "Speed" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["Speed"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Speed"] = ""
+            if "Duplex" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["Duplex"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Duplex"] = ""
     return interfaces
-
 
 def extrair_lldp(linhas, interfaces):
     iface_local = None  # Interface local atual
@@ -159,7 +166,6 @@ def extrair_lldp(linhas, interfaces):
             interfaces[iface_local]["LLDP Device ID"] = port_id
 
     return interfaces
-
 
 
 def processar_mod_huawei():
