@@ -115,43 +115,51 @@ def extrair_detalhes_display_interface(linhas, interfaces):
 def extrair_lldp(linhas, interfaces):
     iface_local = None  # Interface local atual
     iface_atual = None  # Interface que vamos gravar no dict
+    port_id = None
+    mgmt_addr = None
 
     for linha in linhas:
         linha = linha.strip()
 
-        # Captura a interface local antes de "has x neighbor(s):"
+        # Captura a interface local
         match_iface = re.match(r"^(\S+) has \d+ neighbor\(s\):", linha)
         if match_iface:
+            # se já estávamos em uma interface, salva antes de resetar
+            if iface_local and iface_local in interfaces:
+                if mgmt_addr:  # caso com Management Address
+                    interfaces[iface_local]["Neighbor Dest. Port"] = port_id
+                    interfaces[iface_local]["Neighbor IP Address"] = mgmt_addr
+                else:  # caso sem Management Address
+                    interfaces[iface_local]["LLDP Device ID"] = port_id
+
+            # inicia novo bloco
             iface_local = match_iface.group(1)
+            port_id = None
+            mgmt_addr = None
             continue
 
-        # Captura o Port ID (interface remota)
+        # Captura Port ID
         match_port = re.match(r"^Port ID\s*:\s*(.+)", linha)
-        if match_port and iface_local:
-            remote_port = match_port.group(1).strip()
-
-            # Usa a interface local como chave no dicionário
-            if iface_local in interfaces:
-                iface_atual = iface_local
-                interfaces[iface_atual]["Neighbor Dest. Port"] = remote_port
+        if match_port:
+            port_id = match_port.group(1).strip()
             continue
 
-        if iface_atual:
-            # LLDP Device ID (vou usar como System Name para consistência)
-            match_sysname = re.match(r"^System name\s*:\s*(.+)", linha)
-            if match_sysname:
-                interfaces[iface_atual]["LLDP Device ID"] = match_sysname.group(
-                    1
-                ).strip()
-                print(match_sysname.group(1).strip())
+        # Captura Management address value
+        match_mgmt = re.match(r"^Management address value\s*:\s*(.+)", linha)
+        if match_mgmt:
+            mgmt_addr = match_mgmt.group(1).strip()
+            continue
 
-            # Neighbor IP
-            if linha.startswith("Management address value"):
-                interfaces[iface_atual]["Neighbor IP Address"] = linha.split(":", 1)[
-                    1
-                ].strip()
+    # salva o último bloco
+    if iface_local and iface_local in interfaces:
+        if mgmt_addr:
+            interfaces[iface_local]["Neighbor Dest. Port"] = port_id
+            interfaces[iface_local]["Neighbor IP Address"] = mgmt_addr
+        else:
+            interfaces[iface_local]["LLDP Device ID"] = port_id
 
     return interfaces
+
 
 
 def processar_mod_huawei():
@@ -165,7 +173,6 @@ def processar_mod_huawei():
         device_name = extrair_device_name(linhas)
         interfaces = extrair_interface_brief(linhas)
 
-        # Inicializa campos apenas se não existirem (não sobrescreve Description)
         for v in interfaces.values():
             campos = [
                 "Description",
