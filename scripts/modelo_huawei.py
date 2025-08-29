@@ -67,6 +67,10 @@ def display_current_configuration(linhas, interfaces):
                 iface_atual = None
 
         if iface_atual:
+            if "port link-type" in linha:
+                interfaces[iface_atual]["Link-type"] = linha.split("port link-type")[
+                    1
+                ].strip()
             if "port hybrid tagged vlan" in linha:
                 interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[
                     1
