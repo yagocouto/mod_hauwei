@@ -141,10 +141,7 @@ def extrair_detalhes_display_interface(linhas, interfaces):
 
 
 def extrair_lldp(linhas, interfaces):
-    iface_local = None  # Interface local atual
-    iface_atual = None  # Interface que vamos gravar no dict
-    port_id = None
-    mgmt_addr = None
+    iface_atual = None  # Interface local atual
 
     for linha in linhas:
         linha = linha.strip()
@@ -152,39 +149,37 @@ def extrair_lldp(linhas, interfaces):
         # Captura a interface local
         match_iface = re.match(r"^(\S+) has \d+ neighbor\(s\):", linha)
         if match_iface:
-            # se já estávamos em uma interface, salva antes de resetar
-            if iface_local and iface_local in interfaces:
-                if mgmt_addr:  # caso com Management Address
-                    interfaces[iface_local]["Neighbor Dest. Port"] = port_id
-                    interfaces[iface_local]["Neighbor IP Address"] = mgmt_addr
-                else:  # caso sem Management Address
-                    interfaces[iface_local]["LLDP Device ID"] = port_id
+            nome = match_iface.group(1)
+            if nome in interfaces:
+                iface_atual = nome
+        elif iface_atual:
 
-            # inicia novo bloco
-            iface_local = match_iface.group(1)
-            port_id = None
-            mgmt_addr = None
-            continue
-
-        # Captura Port ID
-        match_port = re.match(r"^Port ID\s*:\s*(.+)", linha)
-        if match_port:
-            port_id = match_port.group(1).strip()
-            continue
-
-        # Captura Management address value
-        match_mgmt = re.match(r"^Management address value\s*:\s*(.+)", linha)
-        if match_mgmt:
-            mgmt_addr = match_mgmt.group(1).strip()
-            continue
-
-    # salva o último bloco
-    if iface_local and iface_local in interfaces:
-        if mgmt_addr:
-            interfaces[iface_local]["Neighbor Dest. Port"] = port_id
-            interfaces[iface_local]["Neighbor IP Address"] = mgmt_addr
-        else:
-            interfaces[iface_local]["LLDP Device ID"] = port_id
+            if "System name" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["LLDP Device ID"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["LLDP Device ID"] = ""
+            if "Port ID" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["Neighbor Dest. Port"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Neighbor Dest. Port"] = ""
+            if (
+                "Management address value" in linha
+                and ":" in linha
+                or "Management address" in linha
+                and ":" in linha
+            ):
+                try:
+                    interfaces[iface_atual]["Neighbor IP Address"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Neighbor IP Address"] = ""
 
     return interfaces
 
