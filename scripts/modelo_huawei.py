@@ -54,12 +54,11 @@ def extrair_interface_brief(linhas):
     return interfaces
 
 
-def extrair_detalhes_interfaces(linhas, interfaces):
+def display_current_configuration(linhas, interfaces):
     iface_atual = None
     for linha in linhas:
         if linha.strip().lower().startswith("interface "):
             nome = linha.split()[1].strip()
-            # normaliza para minúsculas ao comparar
             for iface_nome in interfaces:
                 if iface_nome.lower() == nome.lower():
                     iface_atual = iface_nome
@@ -68,17 +67,6 @@ def extrair_detalhes_interfaces(linhas, interfaces):
                 iface_atual = None
 
         if iface_atual:
-            # captura description ignorando espaços e maiúsculas
-            if "description" in linha.lower():
-                partes = linha.split("description", 1)
-                if len(partes) > 1:
-                    descricao = partes[1]
-                    interfaces[iface_atual]["Description"] = descricao
-
-            if "port link-type" in linha:
-                interfaces[iface_atual]["Link-type"] = linha.split()[-1]
-            if "port hybrid pvid vlan" in linha:
-                interfaces[iface_atual]["PVID"] = linha.split()[-1]
             if "port hybrid tagged vlan" in linha:
                 interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[
                     1
@@ -103,6 +91,34 @@ def extrair_detalhes_display_interface(linhas, interfaces):
             if nome in interfaces:
                 iface_atual = nome
         elif iface_atual:
+            if "Description" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["Description"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Description"] = ""
+            if "Link-type" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["Link-type"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Description"] = ""
+            if "PVID" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["PVID"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["PVID"] = ""
+            if "Link-type" in linha and ":" in linha:
+                try:
+                    interfaces[iface_atual]["Link-type"] = (
+                        linha.split(":", 1)[1].split(",")[0].strip()
+                    )
+                except IndexError:
+                    interfaces[iface_atual]["Link-type"] = ""
             if "Speed" in linha and ":" in linha:
                 try:
                     interfaces[iface_atual]["Speed"] = (
@@ -118,6 +134,7 @@ def extrair_detalhes_display_interface(linhas, interfaces):
                 except IndexError:
                     interfaces[iface_atual]["Duplex"] = ""
     return interfaces
+
 
 def extrair_lldp(linhas, interfaces):
     iface_local = None  # Interface local atual
@@ -196,7 +213,7 @@ def processar_mod_huawei():
             for c in campos:
                 v.setdefault(c, "")
 
-        interfaces = extrair_detalhes_interfaces(linhas, interfaces)
+        interfaces = display_current_configuration(linhas, interfaces)
         interfaces = extrair_detalhes_display_interface(linhas, interfaces)
         interfaces = extrair_lldp(linhas, interfaces)
 
