@@ -68,9 +68,13 @@ def display_current_configuration(linhas, interfaces):
 
         if iface_atual:
             if "port link-type" in linha:
+                if "trunk" in linha:
+                    interfaces[iface_atual]["Tagged"] = extrair_link_type_trunk(linhas)
+
                 interfaces[iface_atual]["Link-type"] = linha.split("port link-type")[
                     1
                 ].strip()
+
             if "port hybrid tagged vlan" in linha:
                 interfaces[iface_atual]["Tagged"] = linha.split("tagged vlan")[
                     1
@@ -102,13 +106,6 @@ def extrair_detalhes_display_interface(linhas, interfaces):
                     )
                 except IndexError:
                     interfaces[iface_atual]["Description"] = ""
-            if "Link-type" in linha and ":" in linha:
-                try:
-                    interfaces[iface_atual]["Link-type"] = (
-                        linha.split(":", 1)[1].split(",")[0].strip()
-                    )
-                except IndexError:
-                    interfaces[iface_atual]["Description"] = ""
             if "PVID" in linha and ":" in linha:
                 try:
                     interfaces[iface_atual]["PVID"] = (
@@ -116,21 +113,26 @@ def extrair_detalhes_display_interface(linhas, interfaces):
                     )
                 except IndexError:
                     interfaces[iface_atual]["PVID"] = ""
+
             if "Link-type" in linha and ":" in linha:
+                trunk = linha.split(":", 1)[1].split(",")[0].strip()
+                if "trunk" in trunk:
+                    interfaces[iface_atual]["Tagged"] = extrair_link_type_trunk(linhas)
                 try:
                     interfaces[iface_atual]["Link-type"] = (
                         linha.split(":", 1)[1].split(",")[0].strip()
                     )
                 except IndexError:
                     interfaces[iface_atual]["Link-type"] = ""
-            if "Speed" in linha and ":" in linha:
+
+            if "Speed :" in linha and ":" in linha:
                 try:
                     interfaces[iface_atual]["Speed"] = (
                         linha.split(":", 1)[1].split(",")[0].strip()
                     )
                 except IndexError:
                     interfaces[iface_atual]["Speed"] = ""
-            if "Duplex" in linha and ":" in linha:
+            if "Duplex:" in linha and ":" in linha:
                 try:
                     interfaces[iface_atual]["Duplex"] = (
                         linha.split(":", 1)[1].split(",")[0].strip()
@@ -138,6 +140,12 @@ def extrair_detalhes_display_interface(linhas, interfaces):
                 except IndexError:
                     interfaces[iface_atual]["Duplex"] = ""
     return interfaces
+
+
+def extrair_link_type_trunk(linhas):
+    for linha in linhas:
+        if "port trunk allow-pass vlan" in linha:
+            return " ".join(linha.split()[4:])
 
 
 def extrair_lldp(linhas, interfaces):
